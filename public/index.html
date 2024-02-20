@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agrotech</title>
+    <script type="text/javascript" src="qrcode.js"></script>
+    <script
+      src="https://cdn.socket.io/4.7.4/socket.io.min.js"
+      integrity="sha384-Gr6Lu2Ajx28mzwyVR8CFkULdCU7kMlZ9UthllibdOSo6qAiN+yXNHqtgdTvFXMT4"
+      crossorigin="anonymous"
+    ></script>
+
+    <style>
+      #qr-code {
+        height: 100px;
+        width: 100px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="qr-code"></div>
+
+    <script type="text/javascript">
+      new QRCode(
+        document.getElementById("qr-code"),
+        "helo world! this is a qr code!"
+      );
+
+      const socket = io("http://192.168.43.46:3000/auth", {
+        path: "/auth/socket.io",
+        auth: {
+          uuid: "123",
+        },
+      });
+
+      socket.on("connect", () => {
+        console.log("connected");
+      });
+    </script>
+  </body>
+</html>
