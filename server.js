@@ -6,13 +6,13 @@ const sockets = require("./sockets.js");
 
 const httpServer = http.createServer(apiServer);
 const socketServer = new Server(httpServer, {
-  path: "/auth/socket.io",
+  path: "/agrotech/socket.io",
   cors: {
     origin: "*",
   },
 });
 
-const PORT = 3000;
+const PORT = 3003;
 httpServer.listen(PORT);
 console.log(`Listening on port ${PORT}...`);
 

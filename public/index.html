@@ -37,7 +37,7 @@
       const qrCode = new QRCode("qr-code");
 
       const socket = io("http://192.168.43.46:3000/auth", {
-        path: "/auth/socket.io",
+        path: "/agrotech/socket.io",
         auth: {
           uid: Math.random().toString(36).substr(2, 9),
         },
