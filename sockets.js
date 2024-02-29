@@ -1,43 +1,90 @@
 const moment = require("moment");
 
-let token = { value: "hello world", expire: moment(1900) };
+const CLIENTS = {};
 
-const onQrCodeScanned = (authNamespace, socket) => async (scannedToken) => {
-  if (scannedToken !== token.value) {
-    socket.emit("qr-code-error", {
-      code: 400,
-      message: "Token invalid",
-    });
-    return;
+const onQrCodeScanned =
+  (authNamespace, socket) => async (scannedToken, user) => {
+    const [uid, client] =
+      Object.entries(CLIENTS).find(
+        ([uid, client]) =>
+          client.token === scannedToken && client.expireAt > moment().unix()
+      ) || [];
+
+    if (!client) {
+      return;
+    }
+
+    clearInterval(client.intervalRef);
+
+    authNamespace.to(uid).emit("success-login", user);
+  };
+
+const newSession = async (authNamespace, socket) => {
+  const uid = socket.uid;
+  const userType = socket.userType;
+
+  if (userType !== "mobile") {
+    socket.join(uid);
+    const token = generateUniqueToken();
+    const intervalRef = setInterval(() => {
+      if (moment().unix() > CLIENTS[uid].sessionExpireAt) {
+        authNamespace.to(uid).emit("session-expired");
+        clearInterval(CLIENTS[uid].intervalRef);
+        delete CLIENTS[uid];
+        return;
+      }
+
+      const newToken = generateUniqueToken();
+      CLIENTS[uid].token = newToken;
+      CLIENTS[uid].expireAt = moment().add(10, "second").unix();
+      authNamespace.to(uid).emit("token", newToken);
+    }, 10000);
+
+    CLIENTS[uid] = {
+      token,
+      expireAt: moment().add(10, "second").unix(),
+      sessionExpireAt: moment().add(60, "second").unix(),
+      intervalRef,
+    };
+    authNamespace.to(uid).emit("token", token);
   }
-
-  console.log("QR code scanned", scannedToken);
 };
 
-const newConnection = async (socket) => {
-  socket.emit("token", token.value);
+const generateUniqueToken = () => {
+  return `${moment().unix()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
 function listen(io) {
   const authNamespace = io.of("/auth");
   authNamespace.use((socket, next) => {
-    const uuid = socket.handshake.auth.uuid;
+    const uid = socket.handshake.auth.uid;
+    const userType = socket.handshake.auth.userType;
 
-    if (!uuid) {
+    console.log("new connection", uid);
+
+    if (!uid) {
       return next(new Error("invalid credentials"));
     }
 
-    socket.uuid = uuid;
+    socket.uid = uid;
+    socket.userType = userType;
     next();
   });
 
   authNamespace.on("connection", (socket) => {
-    newConnection(authNamespace, socket);
+    newSession(authNamespace, socket);
 
-    socket.on("qr-code-scanned", onQrCodeScanned(socket));
+    socket.on("qr-code-scanned", onQrCodeScanned(authNamespace, socket));
+
+    socket.on("new-session", () => newSession(authNamespace, socket));
 
     socket.on("disconnect", (reason) => {
-      console.log(`Client ${socket.uuid} disconnected: ${reason}`);
+      if (!CLIENTS[socket.uid]) {
+        return;
+      }
+      clearInterval(CLIENTS[socket.uid].intervalRef);
+      delete CLIENTS[socket.uid];
+      console.log(`Client ${socket.uid} disconnected: ${reason}`);
     });
   });
 }
